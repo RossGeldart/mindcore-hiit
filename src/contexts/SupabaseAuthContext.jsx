@@ -4,6 +4,16 @@ import { useToast } from '@/components/ui/use-toast';
 
 const AuthContext = createContext(undefined);
 
+// Helper to get redirect URL - always use www to avoid SSL issues on mobile
+const getRedirectUrl = (path) => {
+  // In production, always use www version to avoid SSL redirect issues
+  if (typeof window !== 'undefined' && window.location.hostname === 'mindcorehiitgenerator.com') {
+    return `https://www.mindcorehiitgenerator.com${path}`;
+  }
+  // For localhost/development, use current origin
+  return `${window.location.origin}${path}`;
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -75,7 +85,7 @@ export const AuthProvider = ({ children }) => {
         password,
         options: {
           data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}/auth/callback`
+          emailRedirectTo: getRedirectUrl('/auth/callback')
         }
       });
       
@@ -108,7 +118,7 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: getRedirectUrl('/auth/callback'),
           queryParams: { access_type: 'offline', prompt: 'consent' }
         }
       });
@@ -123,9 +133,8 @@ export const AuthProvider = ({ children }) => {
   // Send password reset email
   const resetPassword = async (email) => {
     try {
-      // Use dedicated /auth/reset path for password recovery
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset`
+        redirectTo: getRedirectUrl('/auth/reset')
       });
       if (error) throw error;
       return true;
