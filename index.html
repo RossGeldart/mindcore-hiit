@@ -11,36 +11,6 @@
     <title>Mind Core HIIT Generator</title>
   </head>
   <body>
-    <!-- Capture original URL before any JS can modify it -->
-    <script>
-      (function() {
-        try {
-          // Save the FULL original URL immediately - before Supabase can clean it
-          var url = window.location.href;
-          var path = window.location.pathname;
-          var search = window.location.search;
-          var hash = window.location.hash;
-          
-          // Store in sessionStorage for React to read
-          sessionStorage.setItem('__original_url', url);
-          sessionStorage.setItem('__original_path', path);
-          sessionStorage.setItem('__original_search', search);
-          sessionStorage.setItem('__original_hash', hash);
-          
-          // Check if this is a password recovery flow
-          var isRecovery = path === '/reset' || 
-                          search.indexOf('type=recovery') !== -1 || 
-                          hash.indexOf('type=recovery') !== -1;
-          
-          if (isRecovery) {
-            sessionStorage.setItem('__is_password_recovery', 'true');
-            console.log('[index.html] Password recovery flow detected:', url);
-          }
-        } catch(e) {
-          console.error('[index.html] Error saving URL:', e);
-        }
-      })();
-    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
