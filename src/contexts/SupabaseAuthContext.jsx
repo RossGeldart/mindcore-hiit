@@ -1,61 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
-import { validateSessionStructure, clearSession, isSessionClaimError } from '@/lib/sessionUtils';
 
 const AuthContext = createContext(undefined);
-
-// Global flag to track if this is a password recovery flow
-// This needs to be outside React to capture events before components mount
-let isPasswordRecoveryFlow = false;
-
-// Check for recovery flow from MULTIPLE sources
-if (typeof window !== 'undefined') {
-  try {
-    // SOURCE 1: Check sessionStorage flag set by index.html (MOST RELIABLE)
-    // This was set BEFORE any JS ran, so it has the original URL
-    const recoveryFlagFromHtml = sessionStorage.getItem('__is_password_recovery');
-    if (recoveryFlagFromHtml === 'true') {
-      isPasswordRecoveryFlow = true;
-      console.log('[AuthContext] Password recovery detected from index.html flag');
-    }
-    
-    // SOURCE 2: Check original URL saved by index.html
-    const originalPath = sessionStorage.getItem('__original_path');
-    const originalSearch = sessionStorage.getItem('__original_search') || '';
-    const originalHash = sessionStorage.getItem('__original_hash') || '';
-    
-    if (originalPath === '/reset') {
-      isPasswordRecoveryFlow = true;
-      console.log('[AuthContext] Password recovery detected from original path:', originalPath);
-    }
-    
-    if (originalSearch.includes('type=recovery') || originalHash.includes('type=recovery')) {
-      isPasswordRecoveryFlow = true;
-      console.log('[AuthContext] Password recovery detected from original params');
-    }
-    
-    // SOURCE 3: Check current URL (fallback, might already be cleaned)
-    const url = new URL(window.location.href);
-    const params = new URLSearchParams(url.search);
-    const hashParams = new URLSearchParams(url.hash.replace('#', ''));
-    const type = params.get('type') || hashParams.get('type');
-    if (url.pathname === '/reset' || type === 'recovery') {
-      isPasswordRecoveryFlow = true;
-      console.log('[AuthContext] Password recovery detected from current URL');
-    }
-    
-    // Log the detection result
-    console.log('[AuthContext] Recovery flow detection result:', isPasswordRecoveryFlow, {
-      flagFromHtml: recoveryFlagFromHtml,
-      originalPath,
-      originalSearch,
-      currentPath: url.pathname
-    });
-  } catch (e) {
-    console.error('[AuthContext] Error checking recovery flow:', e);
-  }
-}
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -70,56 +17,26 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  // Use a ref to track mount status
   const isMounted = useRef(true);
-  // Use a ref to track if we are intentionally ignoring auth updates (during logout)
-  const ignoreAuthUpdates = useRef(false);
 
-  // --- HELPER: LOG & CLEAR ---
-  const clearLocalState = () => {
-    // Synchronous clearing of state
-    if (isMounted.current) {
-      setUser(null);
-      setSession(null);
-    }
-    // Clear local storage items immediately
-    clearSession(); 
-    localStorage.removeItem('mc_screen');
-    localStorage.removeItem('mc_workout');
-  };
-
-  // --- INITIALIZATION ---
+  // Initialize auth state
   useEffect(() => {
     isMounted.current = true;
-    console.log('[AuthContext] Initializing auth...');
 
     const initializeAuth = async () => {
       try {
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         
         if (error) {
-            console.warn('[AuthContext] Session init error:', error);
-            if (isSessionClaimError(error)) {
-                clearLocalState();
-            }
+          console.warn('[Auth] Session init error:', error);
         } else if (currentSession) {
-            if (validateSessionStructure(currentSession)) {
-                console.log('[AuthContext] Valid session found on init.');
-                if (isMounted.current) {
-                    setSession(currentSession);
-                    setUser(currentSession.user);
-                }
-            } else {
-                console.warn('[AuthContext] Invalid session structure on init.');
-                clearLocalState();
-            }
-        } else {
-            console.log('[AuthContext] No active session on init.');
+          if (isMounted.current) {
+            setSession(currentSession);
+            setUser(currentSession.user);
+          }
         }
       } catch (err) {
-        console.error("[AuthContext] Auth initialization critical error:", err);
-        clearLocalState();
+        console.error("[Auth] Initialization error:", err);
       } finally {
         if (isMounted.current) setLoading(false);
       }
@@ -127,52 +44,19 @@ export const AuthProvider = ({ children }) => {
 
     initializeAuth();
 
-    // Listen for Auth State Changes
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted.current) return;
       
-      console.log(`AUTH_LISTENER: Auth state changed: ${event}`);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SupabaseAuthContext.jsx:onAuthStateChange',message:'Auth state change event',data:{event,hasSession:!!session,userId:session?.user?.id,isPasswordRecoveryFlow},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,G'})}).catch(()=>{});
-      // #endregion
-
-      // CRITICAL: Detect PASSWORD_RECOVERY event from Supabase
-      if (event === 'PASSWORD_RECOVERY') {
-        console.log('[AuthContext] PASSWORD_RECOVERY event detected! Setting recovery flag.');
-        isPasswordRecoveryFlow = true;
-        // Update session state but don't clear recovery flag
-        if (session && validateSessionStructure(session)) {
-          setSession(session);
-          setUser(session.user);
-        }
-        return;
-      }
-
-      // 1. If we are ignoring updates (during logout), skip
-      if (ignoreAuthUpdates.current) {
-        console.log("AUTH_LISTENER: Ignoring update due to active logout.");
-        return;
-      }
-
-      // 2. If user is null and session is null, don't try to restore state blindly
-      // unless it's a specific sign-in event.
-      if (!user && !session && event !== 'SIGNED_IN' && event !== 'TOKEN_REFRESHED' && event !== 'INITIAL_SESSION') {
-         // If we are already cleared, and event is SIGNED_OUT, do nothing.
-         if (event === 'SIGNED_OUT') return;
-      }
+      console.log(`[Auth] State changed: ${event}`);
 
       if (event === 'SIGNED_OUT') {
-        console.log('[AuthContext] Listener caught SIGNED_OUT. Clearing state.');
-        isPasswordRecoveryFlow = false; // Clear recovery flag on logout
-        clearLocalState();
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        console.log('[AuthContext] Listener caught SIGN_IN/REFRESH. Updating state.');
-        if (session && validateSessionStructure(session)) {
-            setSession(session);
-            setUser(session.user);
-        } else {
-            console.warn("[AuthContext] Invalid session in listener.");
-            clearLocalState();
+        setUser(null);
+        setSession(null);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
+        if (session) {
+          setSession(session);
+          setUser(session.user);
         }
       }
     });
@@ -181,16 +65,20 @@ export const AuthProvider = ({ children }) => {
       isMounted.current = false;
       subscription?.unsubscribe();
     };
-  }, [toast]); 
+  }, []);
 
-  // --- LOGIN / SIGNUP ---
-
+  // Sign up with email and password
   const signUp = async (email, password, fullName) => {
-    // Reset ignore flag just in case
-    ignoreAuthUpdates.current = false;
     try {
-      const options = { data: { full_name: fullName } };
-      const { data, error } = await supabase.auth.signUp({ email, password, options });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      
       if (error) throw error;
       return data;
     } catch (error) {
@@ -199,30 +87,30 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Sign in with email and password
   const signIn = async (email, password) => {
-    // Reset ignore flag just in case
-    ignoreAuthUpdates.current = false;
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       return data;
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Login failed",
-        description: error.message === "Invalid login credentials" ? "Incorrect email or password." : error.message,
-      });
+      const message = error.message === "Invalid login credentials" 
+        ? "Incorrect email or password." 
+        : error.message;
+      toast({ variant: "destructive", title: "Login failed", description: message });
       throw error;
     }
   };
 
+  // Sign in with Google
   const signInWithGoogle = async () => {
-    ignoreAuthUpdates.current = false;
     try {
-      const redirectTo = `${window.location.origin}/`;
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { queryParams: { access_type: 'offline', prompt: 'consent' }, redirectTo },
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: { access_type: 'offline', prompt: 'consent' }
+        }
       });
       if (error) throw error;
       return data;
@@ -232,71 +120,45 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- SIMPLIFIED LOGOUT ---
-
-  const signOut = () => {
-    console.log("LOGOUT: Starting logout process");
-    
-    // Set flag to ignore subsequent listener events temporarily
-    // to prevent race conditions where the listener might try to update state while we are clearing it.
-    ignoreAuthUpdates.current = true;
-
-    // 1. Call supabase.auth.signOut() without awaiting the promise (fire and forget pattern)
-    // allowing the UI to update immediately. We handle errors in the .then callback.
-    supabase.auth.signOut()
-      .then(({ error }) => {
-        if (error) {
-           // Suppress specific "session_not_found" error which happens if token is already invalid
-           const isSessionNotFound = 
-             (error?.status === 403 && error?.code === 'session_not_found') ||
-             (error?.message && error.message.includes('session_not_found'));
-
-           if (isSessionNotFound) {
-             console.log("LOGOUT: Session already invalid on server (session_not_found), suppressing error toast.");
-           } else {
-             console.error("LOGOUT: Server logout error", error);
-             toast({
-               variant: "destructive",
-               title: "Logout Warning",
-               description: "Local session cleared, but server reported an error: " + (error.message || "Unknown error"),
-               duration: 3000
-             });
-           }
-        } else {
-           console.log("LOGOUT: Supabase session ended on server");
-        }
-      })
-      .catch((err) => {
-         console.error("LOGOUT: Unexpected error during signOut", err);
-      })
-      .finally(() => {
-         // Reset flag after a delay to allow normal operations again
-         setTimeout(() => { ignoreAuthUpdates.current = false; }, 2000);
-      });
-
-    // 2. Immediately clear state
-    console.log("LOGOUT: signOut called, clearing state");
-    
-    // Synchronous state updates
-    if (isMounted.current) {
-        setUser(null);
-        setSession(null);
-    }
-
-    // 3. Clear local storage
+  // Send password reset email
+  const resetPassword = async (email) => {
     try {
-        clearSession();
-        localStorage.removeItem('mc_screen');
-        localStorage.removeItem('mc_workout');
-    } catch (e) {
-        console.error("LOGOUT: Error clearing local storage", e);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?type=recovery`
+      });
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      toast({ variant: "destructive", title: "Reset failed", description: error.message });
+      throw error;
     }
-    
-    console.log("LOGOUT: State cleared, setting screen to 'welcome' (via App effect)");
-    console.log("LOGOUT: Logout complete");
   };
 
-  // --- HELPERS ---
+  // Update user password
+  const updatePassword = async (newPassword) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      toast({ variant: "destructive", title: "Update failed", description: error.message });
+      throw error;
+    }
+  };
+
+  // Sign out
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Sign out error:", error);
+    }
+    setUser(null);
+    setSession(null);
+    localStorage.removeItem('mc_screen');
+  };
+
+  // Check if user has a profile
   const checkProfileExists = async (userId) => {
     if (!userId) return false;
     const { count } = await supabase
@@ -306,43 +168,17 @@ export const AuthProvider = ({ children }) => {
     return count > 0;
   };
 
-  const getLatestUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      return data?.user;
-  };
-
-  // Check if this is a password recovery flow
-  const checkIsPasswordRecovery = () => {
-    return isPasswordRecoveryFlow;
-  };
-
-  // Clear the password recovery flag (call after password is successfully reset)
-  const clearPasswordRecoveryFlag = () => {
-    isPasswordRecoveryFlow = false;
-    // Also clear sessionStorage flags
-    try {
-      sessionStorage.removeItem('__is_password_recovery');
-      sessionStorage.removeItem('__original_url');
-      sessionStorage.removeItem('__original_path');
-      sessionStorage.removeItem('__original_search');
-      sessionStorage.removeItem('__original_hash');
-    } catch (e) {
-      console.error('[AuthContext] Error clearing recovery flags:', e);
-    }
-  };
-
   const value = {
+    user,
+    session,
+    loading,
     signUp,
     signIn,
     signInWithGoogle,
     signOut,
-    checkProfileExists,
-    getLatestUser,
-    checkIsPasswordRecovery,
-    clearPasswordRecoveryFlag,
-    user,
-    session,
-    loading
+    resetPassword,
+    updatePassword,
+    checkProfileExists
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
