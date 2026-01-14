@@ -76,18 +76,25 @@ const AuthCallback = ({ onComplete, onError }) => {
           await new Promise(resolve => setTimeout(resolve, 500));
 
           if (data?.session) {
+            // Re-check sessionStorage for recovery flag
+            const finalRecoveryCheck = sessionStorage.getItem('__is_password_recovery') === 'true';
+            if (finalRecoveryCheck) {
+              isRecoveryRef.current = true;
+            }
+            
             const isPasswordRecovery = isRecoveryRef.current;
             console.log('[AuthCallback] Success! Is recovery:', isPasswordRecovery);
             
             setStatus('success');
             setMessage(isPasswordRecovery ? 'Link verified! Redirecting to set your new password...' : 'Email verified successfully!');
             
-            // Clean URL and sessionStorage
+            // Clean URL
             window.history.replaceState({}, '', '/');
-            sessionStorage.removeItem('__is_password_recovery');
 
             // Redirect after short delay
             setTimeout(() => {
+              // Clear flag after determining destination
+              sessionStorage.removeItem('__is_password_recovery');
               onComplete(isPasswordRecovery ? 'reset_password' : 'profile');
             }, 1500);
             
@@ -114,6 +121,12 @@ const AuthCallback = ({ onComplete, onError }) => {
           // Small delay to allow PASSWORD_RECOVERY event to fire
           await new Promise(resolve => setTimeout(resolve, 500));
 
+          // Re-check sessionStorage for recovery flag
+          const finalRecoveryCheck = sessionStorage.getItem('__is_password_recovery') === 'true';
+          if (finalRecoveryCheck) {
+            isRecoveryRef.current = true;
+          }
+          
           const isPasswordRecovery = isRecoveryRef.current;
           
           // Clean URL
@@ -123,6 +136,7 @@ const AuthCallback = ({ onComplete, onError }) => {
           setMessage(isPasswordRecovery ? 'Redirecting to set your new password...' : 'Authentication successful!');
           
           setTimeout(() => {
+            sessionStorage.removeItem('__is_password_recovery');
             onComplete(isPasswordRecovery ? 'reset_password' : 'profile');
           }, 1500);
           
@@ -134,16 +148,31 @@ const AuthCallback = ({ onComplete, onError }) => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
-          // Small delay to check for recovery flag
-          await new Promise(resolve => setTimeout(resolve, 300));
+          // Small delay to let PASSWORD_RECOVERY event fire if it hasn't already
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Re-check sessionStorage - the module-level listener in customSupabaseClient 
+          // may have set this flag when PASSWORD_RECOVERY event fired
+          const finalRecoveryCheck = sessionStorage.getItem('__is_password_recovery') === 'true';
+          if (finalRecoveryCheck) {
+            console.log('[AuthCallback] Recovery flag found in final check!');
+            isRecoveryRef.current = true;
+          }
           
           const isPasswordRecovery = isRecoveryRef.current;
+          console.log('[AuthCallback] Final decision - isPasswordRecovery:', isPasswordRecovery);
           
           setStatus('success');
           setMessage(isPasswordRecovery ? 'Redirecting to set your new password...' : 'Session found! Redirecting...');
+          
+          // Clean URL but DON'T clear sessionStorage yet if it's recovery
           window.history.replaceState({}, '', '/');
           
           setTimeout(() => {
+            // Clear the flag AFTER we've determined the destination
+            if (isPasswordRecovery) {
+              sessionStorage.removeItem('__is_password_recovery');
+            }
             onComplete(isPasswordRecovery ? 'reset_password' : 'profile');
           }, 1000);
           

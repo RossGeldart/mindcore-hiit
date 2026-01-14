@@ -22,6 +22,25 @@ const customSupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// CRITICAL: Set up PASSWORD_RECOVERY listener IMMEDIATELY when module loads
+// This runs BEFORE React even renders, so we can catch the event
+// when Supabase auto-processes the reset code from the URL
+if (typeof window !== 'undefined') {
+  customSupabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      console.log('[Supabase] PASSWORD_RECOVERY event caught at module level!');
+      // Store flag in sessionStorage - this persists across the React render
+      sessionStorage.setItem('__is_password_recovery', 'true');
+    }
+  });
+  
+  // Also check URL path immediately for /auth/reset
+  if (window.location.pathname === '/auth/reset') {
+    console.log('[Supabase] /auth/reset path detected at module level');
+    sessionStorage.setItem('__is_password_recovery', 'true');
+  }
+}
+
 export default customSupabaseClient;
 
 export { 
