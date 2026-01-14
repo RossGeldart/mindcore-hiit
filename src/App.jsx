@@ -163,10 +163,29 @@ function AppContent() {
     const pathForLog = window.location.pathname;
     const searchForLog = window.location.search;
     const hashForLog = window.location.hash;
-    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useState-init',message:'Initial screen state calculation',data:{url:urlForLog,path:pathForLog,search:searchForLog,hash:hashForLog,localStorage_mc_screen:localStorage.getItem('mc_screen')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,E'})}).catch(()=>{});
+    const sessionStorageRecovery = sessionStorage.getItem('__is_password_recovery');
+    const originalPath = sessionStorage.getItem('__original_path');
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useState-init',message:'Initial screen state calculation',data:{url:urlForLog,path:pathForLog,search:searchForLog,hash:hashForLog,localStorage_mc_screen:localStorage.getItem('mc_screen'),sessionStorageRecovery,originalPath},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,E,I'})}).catch(()=>{});
     // #endregion
 
-    // 1. Check path (for /reset and clean URLs)
+    // PRIORITY 0: Check sessionStorage flag from index.html (MOST RELIABLE - set before ANY JS)
+    if (sessionStorage.getItem('__is_password_recovery') === 'true') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useState-init',message:'Detected recovery from sessionStorage flag',data:{flag:sessionStorage.getItem('__is_password_recovery')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'I'})}).catch(()=>{});
+      // #endregion
+      return 'reset_password';
+    }
+    
+    // PRIORITY 0.5: Check original path from sessionStorage (set by index.html)
+    const origPath = sessionStorage.getItem('__original_path');
+    if (origPath === '/reset') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useState-init',message:'Detected /reset from original path in sessionStorage',data:{origPath},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'I'})}).catch(()=>{});
+      // #endregion
+      return 'reset_password';
+    }
+
+    // 1. Check current path (for /reset and clean URLs)
     const path = window.location.pathname;
     if (path === '/reset') {
       // #region agent log
@@ -344,10 +363,14 @@ function AppContent() {
     if (loading) return;
 
     // CRITICAL: Check for recovery flow from MULTIPLE sources
-    // 1. From AuthContext flag (set before React mounts or from PASSWORD_RECOVERY event)
-    // 2. From URL path
-    // 3. From URL params  
-    // 4. From current screen state
+    // 1. From sessionStorage (set by index.html before ANY JS runs - MOST RELIABLE)
+    // 2. From AuthContext flag (set before React mounts or from PASSWORD_RECOVERY event)
+    // 3. From URL path
+    // 4. From URL params  
+    // 5. From current screen state
+    const sessionStorageRecoveryFlag = sessionStorage.getItem('__is_password_recovery') === 'true';
+    const originalPath = sessionStorage.getItem('__original_path');
+    
     const currentPath = window.location.pathname;
     const urlParams = new URLSearchParams(window.location.search);
     const hashString = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash;
@@ -355,13 +378,15 @@ function AppContent() {
     const urlType = urlParams.get('type') || hashParams.get('type');
     
     const isRecoveryFlow = 
-      checkIsPasswordRecovery() ||  // Flag from AuthContext (most reliable)
+      sessionStorageRecoveryFlag ||  // Flag from index.html (MOST reliable - set before ANY JS)
+      originalPath === '/reset' ||   // Original path from index.html
+      checkIsPasswordRecovery() ||   // Flag from AuthContext
       currentPath === '/reset' || 
       urlType === 'recovery' || 
       currentScreen === 'reset_password';
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'Recovery flow check',data:{currentPath,urlType,currentScreen,isRecoveryFlow,recoveryFlagFromContext:checkIsPasswordRecovery()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,G'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'Recovery flow check',data:{currentPath,urlType,currentScreen,isRecoveryFlow,sessionStorageRecoveryFlag,originalPath,recoveryFlagFromContext:checkIsPasswordRecovery()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,G,I'})}).catch(()=>{});
     // #endregion
     
     // If this is a password recovery flow, ensure we're on the reset screen and DO NOT redirect

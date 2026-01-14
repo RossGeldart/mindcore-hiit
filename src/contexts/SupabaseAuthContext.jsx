@@ -9,15 +9,51 @@ const AuthContext = createContext(undefined);
 // This needs to be outside React to capture events before components mount
 let isPasswordRecoveryFlow = false;
 
-// Check URL immediately (before React) for recovery indicators
+// Check for recovery flow from MULTIPLE sources
 if (typeof window !== 'undefined') {
-  const url = new URL(window.location.href);
-  const params = new URLSearchParams(url.search);
-  const hashParams = new URLSearchParams(url.hash.replace('#', ''));
-  const type = params.get('type') || hashParams.get('type');
-  if (url.pathname === '/reset' || type === 'recovery') {
-    isPasswordRecoveryFlow = true;
-    console.log('[AuthContext] Password recovery flow detected from URL');
+  try {
+    // SOURCE 1: Check sessionStorage flag set by index.html (MOST RELIABLE)
+    // This was set BEFORE any JS ran, so it has the original URL
+    const recoveryFlagFromHtml = sessionStorage.getItem('__is_password_recovery');
+    if (recoveryFlagFromHtml === 'true') {
+      isPasswordRecoveryFlow = true;
+      console.log('[AuthContext] Password recovery detected from index.html flag');
+    }
+    
+    // SOURCE 2: Check original URL saved by index.html
+    const originalPath = sessionStorage.getItem('__original_path');
+    const originalSearch = sessionStorage.getItem('__original_search') || '';
+    const originalHash = sessionStorage.getItem('__original_hash') || '';
+    
+    if (originalPath === '/reset') {
+      isPasswordRecoveryFlow = true;
+      console.log('[AuthContext] Password recovery detected from original path:', originalPath);
+    }
+    
+    if (originalSearch.includes('type=recovery') || originalHash.includes('type=recovery')) {
+      isPasswordRecoveryFlow = true;
+      console.log('[AuthContext] Password recovery detected from original params');
+    }
+    
+    // SOURCE 3: Check current URL (fallback, might already be cleaned)
+    const url = new URL(window.location.href);
+    const params = new URLSearchParams(url.search);
+    const hashParams = new URLSearchParams(url.hash.replace('#', ''));
+    const type = params.get('type') || hashParams.get('type');
+    if (url.pathname === '/reset' || type === 'recovery') {
+      isPasswordRecoveryFlow = true;
+      console.log('[AuthContext] Password recovery detected from current URL');
+    }
+    
+    // Log the detection result
+    console.log('[AuthContext] Recovery flow detection result:', isPasswordRecoveryFlow, {
+      flagFromHtml: recoveryFlagFromHtml,
+      originalPath,
+      originalSearch,
+      currentPath: url.pathname
+    });
+  } catch (e) {
+    console.error('[AuthContext] Error checking recovery flow:', e);
   }
 }
 
@@ -283,6 +319,16 @@ export const AuthProvider = ({ children }) => {
   // Clear the password recovery flag (call after password is successfully reset)
   const clearPasswordRecoveryFlag = () => {
     isPasswordRecoveryFlow = false;
+    // Also clear sessionStorage flags
+    try {
+      sessionStorage.removeItem('__is_password_recovery');
+      sessionStorage.removeItem('__original_url');
+      sessionStorage.removeItem('__original_path');
+      sessionStorage.removeItem('__original_search');
+      sessionStorage.removeItem('__original_hash');
+    } catch (e) {
+      console.error('[AuthContext] Error clearing recovery flags:', e);
+    }
   };
 
   const value = {
