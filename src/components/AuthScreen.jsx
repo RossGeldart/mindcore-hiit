@@ -105,7 +105,11 @@ const AuthScreen = ({ onBack, onSuccess, initialView = 'login' }) => {
     setLoading(true);
     try {
       await signInWithGoogle();
+      // Note: On success, OAuth redirects away from the page, so loading state
+      // doesn't matter. But we reset it in case redirect is delayed or fails.
     } catch (error) {
+      // Error toast handled in context
+    } finally {
       setLoading(false);
     }
   };

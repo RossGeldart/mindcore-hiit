@@ -143,11 +143,7 @@ const ProfileScreen = ({ onBack, onNavigate }) => {
                      profile = retry.data;
                      if (!profile) throw new Error("Created profile but could not fetch it.");
                  } else {
-                     if (onNavigate) {
-                         onNavigate('profile_setup');
-                         return; // Stop loading here
-                     }
-                     throw new Error("Profile missing and auto-creation failed.");
+                     throw new Error("Unable to initialize your profile. Please try logging out and back in, or contact support.");
                  }
              } else {
                  throw new Error("Profile could not be retrieved.");
