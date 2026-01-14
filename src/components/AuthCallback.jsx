@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { Button } from '@/components/ui/button';
@@ -12,19 +12,33 @@ import { Button } from '@/components/ui/button';
 const AuthCallback = ({ onComplete, onError }) => {
   const [status, setStatus] = useState('processing'); // 'processing', 'success', 'error'
   const [message, setMessage] = useState('Completing authentication...');
-  const [isRecovery, setIsRecovery] = useState(false);
+  const isRecoveryRef = useRef(false);
+  const processedRef = useRef(false);
 
   useEffect(() => {
+    if (processedRef.current) return;
+    processedRef.current = true;
+
+    // Listen for PASSWORD_RECOVERY event from Supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[AuthCallback] Auth event:', event);
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('[AuthCallback] PASSWORD_RECOVERY event detected!');
+        isRecoveryRef.current = true;
+      }
+    });
+
     const handleCallback = async () => {
       try {
         const url = new URL(window.location.href);
         const params = new URLSearchParams(url.search);
         const hashParams = new URLSearchParams(url.hash.replace('#', ''));
 
-        // Check if this is a recovery flow
+        // Check if this is a recovery flow from URL params
         const type = params.get('type') || hashParams.get('type');
-        const isPasswordRecovery = type === 'recovery';
-        setIsRecovery(isPasswordRecovery);
+        if (type === 'recovery') {
+          isRecoveryRef.current = true;
+        }
 
         // Check for errors in URL
         const error = params.get('error') || hashParams.get('error');
@@ -39,27 +53,36 @@ const AuthCallback = ({ onComplete, onError }) => {
 
         if (code) {
           setMessage('Verifying your credentials...');
+          
+          // Exchange code - this will trigger PASSWORD_RECOVERY event if it's a recovery flow
           const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
           if (exchangeError) {
-            // Handle PKCE flow state error (different browser)
             if (exchangeError.message?.includes('flow state') || exchangeError.message?.includes('PKCE')) {
               throw new Error('This link was opened in a different browser. Please use the same browser where you requested the link, or request a new one.');
             }
             throw exchangeError;
           }
 
+          // Small delay to allow PASSWORD_RECOVERY event to fire
+          await new Promise(resolve => setTimeout(resolve, 500));
+
           if (data?.session) {
+            const isPasswordRecovery = isRecoveryRef.current;
+            console.log('[AuthCallback] Success! Is recovery:', isPasswordRecovery);
+            
             setStatus('success');
             setMessage(isPasswordRecovery ? 'Link verified! Redirecting to set your new password...' : 'Email verified successfully!');
             
             // Clean URL
-            window.history.replaceState({}, '', window.location.pathname);
+            window.history.replaceState({}, '', '/');
 
             // Redirect after short delay
             setTimeout(() => {
               onComplete(isPasswordRecovery ? 'reset_password' : 'profile');
             }, 1500);
+            
+            subscription.unsubscribe();
             return;
           }
         }
@@ -79,8 +102,13 @@ const AuthCallback = ({ onComplete, onError }) => {
             if (sessionError) throw sessionError;
           }
 
+          // Small delay to allow PASSWORD_RECOVERY event to fire
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          const isPasswordRecovery = isRecoveryRef.current;
+          
           // Clean URL
-          window.history.replaceState({}, '', window.location.pathname);
+          window.history.replaceState({}, '', '/');
 
           setStatus('success');
           setMessage(isPasswordRecovery ? 'Redirecting to set your new password...' : 'Authentication successful!');
@@ -88,20 +116,29 @@ const AuthCallback = ({ onComplete, onError }) => {
           setTimeout(() => {
             onComplete(isPasswordRecovery ? 'reset_password' : 'profile');
           }, 1500);
+          
+          subscription.unsubscribe();
           return;
         }
 
-        // No tokens found - check if we already have a session
+        // No tokens found - check if we already have a session (user might have already been processed)
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
+          // Small delay to check for recovery flag
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          const isPasswordRecovery = isRecoveryRef.current;
+          
           setStatus('success');
-          setMessage('Session found! Redirecting...');
-          window.history.replaceState({}, '', window.location.pathname);
+          setMessage(isPasswordRecovery ? 'Redirecting to set your new password...' : 'Session found! Redirecting...');
+          window.history.replaceState({}, '', '/');
           
           setTimeout(() => {
             onComplete(isPasswordRecovery ? 'reset_password' : 'profile');
           }, 1000);
+          
+          subscription.unsubscribe();
           return;
         }
 
@@ -113,10 +150,15 @@ const AuthCallback = ({ onComplete, onError }) => {
         setStatus('error');
         setMessage(err.message || 'Authentication failed. Please try again.');
         onError?.(err.message);
+        subscription.unsubscribe();
       }
     };
 
     handleCallback();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [onComplete, onError]);
 
   // Error state
