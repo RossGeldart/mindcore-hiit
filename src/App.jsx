@@ -177,12 +177,23 @@ function AppContent() {
     if (path === '/privacy') return 'privacy';
     if (path === '/terms') return 'terms';
 
-    // 2. Check query params
+    // 2. Check for recovery type in URL params (Supabase password reset flow)
     const params = new URLSearchParams(window.location.search);
+    const hashString = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash;
+    const hashParams = new URLSearchParams(hashString);
+    const type = params.get('type') || hashParams.get('type');
+    if (type === 'recovery') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useState-init',message:'Detected type=recovery, returning reset_password',data:{type},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      return 'reset_password';
+    }
+
+    // 3. Check query params for screen
     const screenParam = params.get('screen');
     if (screenParam && VALID_SCREENS.includes(screenParam)) return screenParam;
 
-    // 3. Fallback to localStorage
+    // 4. Fallback to localStorage
     const saved = localStorage.getItem('mc_screen');
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useState-init',message:'Falling back to localStorage',data:{saved,willReturn:saved==='dashboard'?'profile':(saved&&VALID_SCREENS.includes(saved)?saved:'welcome')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
@@ -241,30 +252,6 @@ function AppContent() {
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useEffect-URL-check',message:'URL check useEffect running',data:{href:url.href,pathname:url.pathname,search:url.search,hash:url.hash,currentScreen},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(()=>{});
     // #endregion
-    
-    // Explicitly check for reset path
-    if (url.pathname === '/reset') {
-        console.log("Found /reset path, switching to reset_password screen.");
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useEffect-URL-check',message:'Setting screen to reset_password from /reset path',data:{pathname:url.pathname,currentScreenBefore:currentScreen},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        setCurrentScreen('reset_password');
-        return;
-    }
-
-    // Explicitly check for privacy path
-    if (url.pathname === '/privacy') {
-        console.log("Found /privacy path, switching to privacy screen.");
-        setCurrentScreen('privacy');
-        return;
-    }
-
-    // Explicitly check for terms path
-    if (url.pathname === '/terms') {
-      console.log("Found /terms path, switching to terms screen.");
-      setCurrentScreen('terms');
-      return;
-    }
 
     const hasCode = url.searchParams.has('code');
     const typeFromQuery = (url.searchParams.get('type') || '').toLowerCase();
@@ -276,14 +263,33 @@ function AppContent() {
 
     const type = typeFromQuery || typeFromHash;
 
-    console.log("🔑 Auth Params Check:", { hasCode, hasAccessToken, type });
+    console.log("🔑 Auth Params Check:", { hasCode, hasAccessToken, type, path: url.pathname });
 
-    // Logic: If it looks like a recovery flow, send to reset_password screen directly
-    if (type === 'recovery') {
+    // PRIORITY 1: Recovery flow (password reset) - check FIRST before anything else
+    if (url.pathname === '/reset' || type === 'recovery') {
         console.log("Recovery flow detected, forcing reset_password screen.");
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useEffect-URL-check',message:'Recovery flow - setting reset_password',data:{pathname:url.pathname,type,currentScreenBefore:currentScreen},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         setCurrentScreen('reset_password');
-    } else if (hasCode || hasAccessToken) {
-        // Standard auth callback
+        return;
+    }
+
+    // PRIORITY 2: Static pages
+    if (url.pathname === '/privacy') {
+        console.log("Found /privacy path, switching to privacy screen.");
+        setCurrentScreen('privacy');
+        return;
+    }
+
+    if (url.pathname === '/terms') {
+      console.log("Found /terms path, switching to terms screen.");
+      setCurrentScreen('terms');
+      return;
+    }
+
+    // PRIORITY 3: Standard auth callback (signup, email verification, etc.)
+    if (hasCode || hasAccessToken) {
         console.log("Standard auth callback detected.");
         setCurrentScreen('auth_callback');
     }
@@ -336,6 +342,29 @@ function AppContent() {
     
     if (loading) return;
 
+    // CRITICAL: Check URL for recovery flow indicators FIRST
+    // This prevents any redirect when user is in password reset flow
+    const currentPath = window.location.pathname;
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashString = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash;
+    const hashParams = new URLSearchParams(hashString);
+    const urlType = urlParams.get('type') || hashParams.get('type');
+    const isRecoveryFlow = currentPath === '/reset' || urlType === 'recovery' || currentScreen === 'reset_password';
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'Recovery flow check',data:{currentPath,urlType,currentScreen,isRecoveryFlow},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
+    // #endregion
+    
+    // If this is a password recovery flow, ensure we're on the reset screen and DO NOT redirect
+    if (isRecoveryFlow) {
+      if (currentScreen !== 'reset_password') {
+        console.log(`[App] Recovery flow detected, forcing reset_password screen`);
+        setCurrentScreen('reset_password');
+      }
+      // Do not process any other redirects during recovery flow
+      return;
+    }
+
     const publicScreens = ['welcome', 'auth', 'privacy', 'terms', 'auth_callback', 'reset_password'];
 
     // 1. If user is logged out, but on a protected screen -> Redirect to Welcome
@@ -346,26 +375,9 @@ function AppContent() {
     }
 
     // 2. If user is logged in, but on auth/welcome screen -> Redirect to Profile
-    // NOTE: We do NOT redirect away from reset_password even if logged in, because the user might have been auto-logged in by the magic link
     if (user && (currentScreen === 'welcome' || currentScreen === 'auth')) {
-      // Don't redirect if we're on reset password screen or privacy or terms!
-      // Also check URL path - if we're on /reset, don't redirect
-      const isOnResetPath = window.location.pathname === '/reset';
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'User logged in check - evaluating redirect',data:{currentScreen,isOnResetPath,willRedirectToProfile:currentScreen!=='reset_password'&&currentScreen!=='privacy'&&currentScreen!=='terms'&&!isOnResetPath},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
-      // #endregion
-      if (currentScreen !== 'reset_password' && currentScreen !== 'privacy' && currentScreen !== 'terms' && !isOnResetPath) {
-          console.log(`[App] User logged in, redirecting from ${currentScreen} to profile`);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'REDIRECTING TO PROFILE - this might be the bug!',data:{currentScreen,isOnResetPath},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
-          // #endregion
-          setCurrentScreen('profile');
-      }
-      // If we're on /reset path but not showing reset_password screen, fix that
-      if (isOnResetPath && currentScreen !== 'reset_password') {
-          console.log(`[App] On /reset path but wrong screen, switching to reset_password`);
-          setCurrentScreen('reset_password');
-      }
+      console.log(`[App] User logged in, redirecting from ${currentScreen} to profile`);
+      setCurrentScreen('profile');
       return;
     }
 
