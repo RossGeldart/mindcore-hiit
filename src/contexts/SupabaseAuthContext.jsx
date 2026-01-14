@@ -5,6 +5,22 @@ import { validateSessionStructure, clearSession, isSessionClaimError } from '@/l
 
 const AuthContext = createContext(undefined);
 
+// Global flag to track if this is a password recovery flow
+// This needs to be outside React to capture events before components mount
+let isPasswordRecoveryFlow = false;
+
+// Check URL immediately (before React) for recovery indicators
+if (typeof window !== 'undefined') {
+  const url = new URL(window.location.href);
+  const params = new URLSearchParams(url.search);
+  const hashParams = new URLSearchParams(url.hash.replace('#', ''));
+  const type = params.get('type') || hashParams.get('type');
+  if (url.pathname === '/reset' || type === 'recovery') {
+    isPasswordRecoveryFlow = true;
+    console.log('[AuthContext] Password recovery flow detected from URL');
+  }
+}
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -81,8 +97,20 @@ export const AuthProvider = ({ children }) => {
       
       console.log(`AUTH_LISTENER: Auth state changed: ${event}`);
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SupabaseAuthContext.jsx:onAuthStateChange',message:'Auth state change event',data:{event,hasSession:!!session,userId:session?.user?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SupabaseAuthContext.jsx:onAuthStateChange',message:'Auth state change event',data:{event,hasSession:!!session,userId:session?.user?.id,isPasswordRecoveryFlow},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,G'})}).catch(()=>{});
       // #endregion
+
+      // CRITICAL: Detect PASSWORD_RECOVERY event from Supabase
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('[AuthContext] PASSWORD_RECOVERY event detected! Setting recovery flag.');
+        isPasswordRecoveryFlow = true;
+        // Update session state but don't clear recovery flag
+        if (session && validateSessionStructure(session)) {
+          setSession(session);
+          setUser(session.user);
+        }
+        return;
+      }
 
       // 1. If we are ignoring updates (during logout), skip
       if (ignoreAuthUpdates.current) {
@@ -99,6 +127,7 @@ export const AuthProvider = ({ children }) => {
 
       if (event === 'SIGNED_OUT') {
         console.log('[AuthContext] Listener caught SIGNED_OUT. Clearing state.');
+        isPasswordRecoveryFlow = false; // Clear recovery flag on logout
         clearLocalState();
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         console.log('[AuthContext] Listener caught SIGN_IN/REFRESH. Updating state.');
@@ -246,6 +275,16 @@ export const AuthProvider = ({ children }) => {
       return data?.user;
   };
 
+  // Check if this is a password recovery flow
+  const checkIsPasswordRecovery = () => {
+    return isPasswordRecoveryFlow;
+  };
+
+  // Clear the password recovery flag (call after password is successfully reset)
+  const clearPasswordRecoveryFlag = () => {
+    isPasswordRecoveryFlow = false;
+  };
+
   const value = {
     signUp,
     signIn,
@@ -253,6 +292,8 @@ export const AuthProvider = ({ children }) => {
     signOut,
     checkProfileExists,
     getLatestUser,
+    checkIsPasswordRecovery,
+    clearPasswordRecoveryFlag,
     user,
     session,
     loading

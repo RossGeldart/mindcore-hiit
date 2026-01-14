@@ -238,7 +238,7 @@ function AppContent() {
 
   const { playClick, playLetsGo } = useSound();
   const { theme } = useTheme();
-  const { user, loading } = useAuth();
+  const { user, loading, checkIsPasswordRecovery, clearPasswordRecoveryFlag } = useAuth();
   const { toast } = useToast();
 
   const subscriptionRef = useRef(subscription);
@@ -337,22 +337,31 @@ function AppContent() {
   // Auth Protection & Routing Logic
   useEffect(() => {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'Auth protection effect triggered',data:{loading,hasUser:!!user,currentScreen,pathname:window.location.pathname},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
+    const recoveryFlagFromContext = checkIsPasswordRecovery();
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'Auth protection effect triggered',data:{loading,hasUser:!!user,currentScreen,pathname:window.location.pathname,recoveryFlagFromContext},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,G'})}).catch(()=>{});
     // #endregion
     
     if (loading) return;
 
-    // CRITICAL: Check URL for recovery flow indicators FIRST
-    // This prevents any redirect when user is in password reset flow
+    // CRITICAL: Check for recovery flow from MULTIPLE sources
+    // 1. From AuthContext flag (set before React mounts or from PASSWORD_RECOVERY event)
+    // 2. From URL path
+    // 3. From URL params  
+    // 4. From current screen state
     const currentPath = window.location.pathname;
     const urlParams = new URLSearchParams(window.location.search);
     const hashString = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash;
     const hashParams = new URLSearchParams(hashString);
     const urlType = urlParams.get('type') || hashParams.get('type');
-    const isRecoveryFlow = currentPath === '/reset' || urlType === 'recovery' || currentScreen === 'reset_password';
+    
+    const isRecoveryFlow = 
+      checkIsPasswordRecovery() ||  // Flag from AuthContext (most reliable)
+      currentPath === '/reset' || 
+      urlType === 'recovery' || 
+      currentScreen === 'reset_password';
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'Recovery flow check',data:{currentPath,urlType,currentScreen,isRecoveryFlow},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'Recovery flow check',data:{currentPath,urlType,currentScreen,isRecoveryFlow,recoveryFlagFromContext:checkIsPasswordRecovery()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,G'})}).catch(()=>{});
     // #endregion
     
     // If this is a password recovery flow, ensure we're on the reset screen and DO NOT redirect
@@ -386,7 +395,7 @@ function AppContent() {
     if (needsWorkout.includes(currentScreen) && !generatedWorkout) {
       setCurrentScreen(user ? 'profile' : 'welcome');
     }
-  }, [user, loading, currentScreen, generatedWorkout]);
+  }, [user, loading, currentScreen, generatedWorkout, checkIsPasswordRecovery]);
 
   const fetchSubscription = useCallback(
     async (withLoading = true) => {
@@ -705,10 +714,12 @@ function AppContent() {
             <PageWrapper key="reset_password">
               <ResetPasswordScreen
                 onBack={() => {
+                    clearPasswordRecoveryFlag(); // Clear flag when leaving reset screen
                     window.history.pushState({}, '', '/');
                     setCurrentScreen('auth');
                 }}
                 onSuccess={() => {
+                  clearPasswordRecoveryFlag(); // Clear flag on success
                   window.history.pushState({}, '', '/');
                   setCurrentScreen('auth');
                 }}

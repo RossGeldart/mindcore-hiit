@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 
 const ResetPasswordScreen = ({ onBack, onSuccess }) => {
   const [password, setPassword] = useState('');
@@ -23,6 +24,7 @@ const ResetPasswordScreen = ({ onBack, onSuccess }) => {
   const [isSendingLink, setIsSendingLink] = useState(false);
   
   const { toast } = useToast();
+  const { clearPasswordRecoveryFlag } = useAuth();
   
   // Prevent double invocation in strict mode
   const verificationAttempted = useRef(false);
@@ -249,6 +251,9 @@ const ResetPasswordScreen = ({ onBack, onSuccess }) => {
         className: "bg-green-600 text-white border-none"
       });
 
+      // Clear the recovery flag BEFORE signing out
+      clearPasswordRecoveryFlag();
+      
       await supabase.auth.signOut();
       
       setTimeout(() => {
