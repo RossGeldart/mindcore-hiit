@@ -75,15 +75,30 @@ const ResetPasswordScreen = ({ onBack, onSuccess }) => {
       const accessToken = hashParams.get('access_token'); // Implicit flow
       const refreshToken = hashParams.get('refresh_token');
 
+      console.log("[ResetPassword] URL params:", { code: !!code, token: !!token, type, accessToken: !!accessToken, refreshToken: !!refreshToken });
+
       try {
-        // STRATEGY 1: Check Active Session (Implicit / Auto-recovered / Persisted)
-        // This handles cases where AuthCallback already established the session
-        const { data: { session: existingSession } } = await supabase.auth.getSession();
-        
-        if (existingSession) {
-          console.log("[ResetPassword] Found existing session");
-          if (mounted) setStatus('valid');
-          return;
+        // STRATEGY 0: Wait for Supabase client to auto-detect and process URL tokens
+        // The Supabase client with detectSessionInUrl: true should handle this automatically
+        // Give it a moment to process
+        console.log("[ResetPassword] Waiting for Supabase to auto-process URL...");
+        await new Promise(r => setTimeout(r, 2000));
+
+        // STRATEGY 1: Check Active Session (multiple attempts)
+        // Sometimes the session takes a moment to be established
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const { data: { session: existingSession } } = await supabase.auth.getSession();
+          
+          if (existingSession) {
+            console.log("[ResetPassword] Found existing session on attempt", attempt + 1);
+            if (mounted) setStatus('valid');
+            return;
+          }
+          
+          if (attempt < 4) {
+            console.log("[ResetPassword] No session yet, waiting... attempt", attempt + 1);
+            await new Promise(r => setTimeout(r, 1000));
+          }
         }
 
         // STRATEGY 2: PKCE Flow (Exchange Code)
@@ -173,12 +188,13 @@ const ResetPasswordScreen = ({ onBack, onSuccess }) => {
     };
 
     // Watchdog to handle cases where verification takes too long or gets stuck
+    // Increased to 30 seconds to allow for slow connections
     timeoutId = setTimeout(() => {
         if (mounted && status === 'verifying') {
             setStatus('timeout');
             setErrorMessage("The verification process timed out. Please check your internet connection or request a new link.");
         }
-    }, 15000); 
+    }, 30000); 
 
     verifyToken();
 
