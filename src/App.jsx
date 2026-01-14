@@ -158,9 +158,22 @@ const VerificationLoader = () => (
 
 function AppContent() {
   const [currentScreen, setCurrentScreen] = useState(() => {
+    // #region agent log
+    const urlForLog = window.location.href;
+    const pathForLog = window.location.pathname;
+    const searchForLog = window.location.search;
+    const hashForLog = window.location.hash;
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useState-init',message:'Initial screen state calculation',data:{url:urlForLog,path:pathForLog,search:searchForLog,hash:hashForLog,localStorage_mc_screen:localStorage.getItem('mc_screen')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,E'})}).catch(()=>{});
+    // #endregion
+
     // 1. Check path (for /reset and clean URLs)
     const path = window.location.pathname;
-    if (path === '/reset') return 'reset_password';
+    if (path === '/reset') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useState-init',message:'Detected /reset path, returning reset_password',data:{path},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      return 'reset_password';
+    }
     if (path === '/privacy') return 'privacy';
     if (path === '/terms') return 'terms';
 
@@ -171,6 +184,9 @@ function AppContent() {
 
     // 3. Fallback to localStorage
     const saved = localStorage.getItem('mc_screen');
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useState-init',message:'Falling back to localStorage',data:{saved,willReturn:saved==='dashboard'?'profile':(saved&&VALID_SCREENS.includes(saved)?saved:'welcome')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     if (saved === 'dashboard') return 'profile';
     return saved && VALID_SCREENS.includes(saved) ? saved : 'welcome';
   });
@@ -222,9 +238,16 @@ function AppContent() {
     const url = new URL(window.location.href);
     console.log("🌐 URL Check on Mount:", url.href);
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useEffect-URL-check',message:'URL check useEffect running',data:{href:url.href,pathname:url.pathname,search:url.search,hash:url.hash,currentScreen},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(()=>{});
+    // #endregion
+    
     // Explicitly check for reset path
     if (url.pathname === '/reset') {
         console.log("Found /reset path, switching to reset_password screen.");
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:useEffect-URL-check',message:'Setting screen to reset_password from /reset path',data:{pathname:url.pathname,currentScreenBefore:currentScreen},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         setCurrentScreen('reset_password');
         return;
     }
@@ -307,6 +330,10 @@ function AppContent() {
 
   // Auth Protection & Routing Logic
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'Auth protection effect triggered',data:{loading,hasUser:!!user,currentScreen,pathname:window.location.pathname},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
+    // #endregion
+    
     if (loading) return;
 
     const publicScreens = ['welcome', 'auth', 'privacy', 'terms', 'auth_callback', 'reset_password'];
@@ -324,8 +351,14 @@ function AppContent() {
       // Don't redirect if we're on reset password screen or privacy or terms!
       // Also check URL path - if we're on /reset, don't redirect
       const isOnResetPath = window.location.pathname === '/reset';
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'User logged in check - evaluating redirect',data:{currentScreen,isOnResetPath,willRedirectToProfile:currentScreen!=='reset_password'&&currentScreen!=='privacy'&&currentScreen!=='terms'&&!isOnResetPath},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
+      // #endregion
       if (currentScreen !== 'reset_password' && currentScreen !== 'privacy' && currentScreen !== 'terms' && !isOnResetPath) {
           console.log(`[App] User logged in, redirecting from ${currentScreen} to profile`);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.jsx:auth-protection-effect',message:'REDIRECTING TO PROFILE - this might be the bug!',data:{currentScreen,isOnResetPath},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
+          // #endregion
           setCurrentScreen('profile');
       }
       // If we're on /reset path but not showing reset_password screen, fix that

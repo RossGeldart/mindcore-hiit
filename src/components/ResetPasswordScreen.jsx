@@ -34,6 +34,10 @@ const ResetPasswordScreen = ({ onBack, onSuccess }) => {
     let mounted = true;
     let timeoutId;
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ResetPasswordScreen.jsx:useEffect',message:'ResetPasswordScreen mounted - starting verification',data:{href:window.location.href,pathname:window.location.pathname,search:window.location.search,hash:window.location.hash},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,D'})}).catch(()=>{});
+    // #endregion
+
     // Detect if likely mobile in-app browser
     const isMobileInAppBrowser = (() => {
       if (typeof navigator === 'undefined') return false;
@@ -76,18 +80,29 @@ const ResetPasswordScreen = ({ onBack, onSuccess }) => {
       const refreshToken = hashParams.get('refresh_token');
 
       console.log("[ResetPassword] URL params:", { code: !!code, token: !!token, type, accessToken: !!accessToken, refreshToken: !!refreshToken });
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ResetPasswordScreen.jsx:verifyToken',message:'Parsed URL params for verification',data:{hasCode:!!code,hasToken:!!token,type,hasAccessToken:!!accessToken,hasRefreshToken:!!refreshToken,fullUrl:currentUrl},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,D'})}).catch(()=>{});
+      // #endregion
 
       try {
         // STRATEGY 0: Wait for Supabase client to auto-detect and process URL tokens
         // The Supabase client with detectSessionInUrl: true should handle this automatically
         // Give it a moment to process
         console.log("[ResetPassword] Waiting for Supabase to auto-process URL...");
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ResetPasswordScreen.jsx:verifyToken',message:'Starting Strategy 0 - waiting for auto-detect',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         await new Promise(r => setTimeout(r, 2000));
 
         // STRATEGY 1: Check Active Session (multiple attempts)
         // Sometimes the session takes a moment to be established
         for (let attempt = 0; attempt < 5; attempt++) {
           const { data: { session: existingSession } } = await supabase.auth.getSession();
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ResetPasswordScreen.jsx:verifyToken',message:'Strategy 1 - checking session',data:{attempt:attempt+1,hasSession:!!existingSession,userId:existingSession?.user?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           
           if (existingSession) {
             console.log("[ResetPassword] Found existing session on attempt", attempt + 1);
@@ -104,6 +119,9 @@ const ResetPasswordScreen = ({ onBack, onSuccess }) => {
         // STRATEGY 2: PKCE Flow (Exchange Code)
         if (code) {
           console.log("[ResetPassword] Attempting PKCE code exchange...");
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ResetPasswordScreen.jsx:verifyToken',message:'Strategy 2 - attempting PKCE exchange',data:{codeLength:code?.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           
           if (error) {

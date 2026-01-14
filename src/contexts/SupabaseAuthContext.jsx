@@ -80,6 +80,9 @@ export const AuthProvider = ({ children }) => {
       if (!isMounted.current) return;
       
       console.log(`AUTH_LISTENER: Auth state changed: ${event}`);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/584dc3a8-c0a6-44b2-9a6a-949fcd977f7e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SupabaseAuthContext.jsx:onAuthStateChange',message:'Auth state change event',data:{event,hasSession:!!session,userId:session?.user?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
+      // #endregion
 
       // 1. If we are ignoring updates (during logout), skip
       if (ignoreAuthUpdates.current) {
