@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Permanent+Marker&family=Alfa+Slab+One&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Mode Variables */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    
+    --card: 0 0% 98%;
+    --card-foreground: 240 10% 3.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    
+    --primary: 353 54% 41%; /* #A0303B - Mind Core Red */
+    --primary-foreground: 0 0% 98%;
+    
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    
+    --destructive: 0 84.2% 60.2%; /* Standard red for destructive actions */
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 353 54% 41%;
+    
+    --radius: 0.75rem;
+
+    /* Brand specifics mapping */
+    --brand-bg: #ffffff;
+    --brand-text-primary: #1a1a1a;
+    --brand-text-secondary: #666666;
+  }
+ 
+  .dark {
+    /* Dark Mode Variables (Original Brand Colors) */
+    --background: 60 2% 19%; /* #323230 */
+    --foreground: 0 0% 100%; /* #ffffff */
+    
+    --card: 0 0% 16%; /* #2A2A2A */
+    --card-foreground: 0 0% 100%;
+    
+    --popover: 60 2% 19%;
+    --popover-foreground: 0 0% 100%;
+    
+    --primary: 353 54% 41%; /* #A0303B - Mind Core Red */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 78%; /* #C8C8C8 */
+    
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 62.8% 30.6%; /* Standard red for destructive actions */
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 0 0% 30%;
+    --input: 240 3.7% 15.9%;
+    --ring: 353 54% 41%;
+
+    /* Brand specifics mapping */
+    --brand-bg: #323230;
+    --brand-text-primary: #FFFFFF;
+    --brand-text-secondary: #C8C8C8;
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    /* Prevent scrollbar flashing during page transitions */
+    overflow-x: hidden;
+    /* Prevent tap highlight flicker on mobile */
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Semantic Utility Classes for Theming */
+/* These mimic Tailwind config extensions if we could edit tailwind.config.js */
+@layer utilities {
+  .bg-background { background-color: hsl(var(--background)); }
+  .text-foreground { color: hsl(var(--foreground)); }
+  
+  .bg-card { background-color: hsl(var(--card)); }
+  .text-card-foreground { color: hsl(var(--card-foreground)); }
+  
+  .bg-primary { background-color: hsl(var(--primary)); }
+  .text-primary-foreground { color: hsl(var(--primary-foreground)); }
+  
+  .bg-muted { background-color: hsl(var(--muted)); }
+  .text-muted-foreground { color: hsl(var(--muted-foreground)); }
+  
+  .border-border { border-color: hsl(var(--border)); }
+  .bg-border { background-color: hsl(var(--border)); } /* sometimes used for lines */
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .btn-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3); 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5); 
+}
