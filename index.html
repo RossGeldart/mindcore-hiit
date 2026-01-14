@@ -12,6 +12,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Capture password reset URL BEFORE Supabase processes and cleans it -->
+    <script>
+      (function() {
+        var path = window.location.pathname;
+        var search = window.location.search;
+        var hash = window.location.hash;
+        
+        // Check if this is a password reset flow
+        if (path === '/auth/reset' || 
+            search.indexOf('type=recovery') !== -1 || 
+            hash.indexOf('type=recovery') !== -1) {
+          sessionStorage.setItem('__password_reset_flow', 'true');
+          console.log('[index.html] Password reset flow detected!');
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

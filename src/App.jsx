@@ -136,9 +136,14 @@ function AppContent() {
     const type = params.get('type') || hashParams.get('type');
     
     // PASSWORD RESET: go directly to reset_password screen
-    // The ResetPasswordScreen handles waiting for the session to be established
-    // Supabase will process the code automatically (detectSessionInUrl: true)
-    if (path === '/auth/reset' || type === 'recovery') {
+    // Check URL path, type param, OR sessionStorage flag (set by index.html before Supabase cleans URL)
+    const isPasswordReset = path === '/auth/reset' || 
+                            type === 'recovery' || 
+                            sessionStorage.getItem('__password_reset_flow') === 'true';
+    
+    if (isPasswordReset) {
+      // Clear the flag so it doesn't persist across page loads
+      sessionStorage.removeItem('__password_reset_flow');
       return 'reset_password';
     }
     
