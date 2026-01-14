@@ -135,8 +135,16 @@ function AppContent() {
     const hasAccessToken = hashParams.has('access_token');
     const type = params.get('type') || hashParams.get('type');
     
-    // Auth callback with recovery type -> reset password
+    // PASSWORD RESET: dedicated /auth/reset path
+    if (path === '/auth/reset') {
+      // Store flag so AuthCallback knows this is recovery
+      sessionStorage.setItem('__is_password_recovery', 'true');
+      return 'auth_callback';
+    }
+    
+    // Auth callback with recovery type
     if ((hasCode || hasAccessToken) && type === 'recovery') {
+      sessionStorage.setItem('__is_password_recovery', 'true');
       return 'auth_callback';
     }
     

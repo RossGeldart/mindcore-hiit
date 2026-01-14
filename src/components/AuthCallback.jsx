@@ -19,6 +19,13 @@ const AuthCallback = ({ onComplete, onError }) => {
     if (processedRef.current) return;
     processedRef.current = true;
 
+    // Check sessionStorage for recovery flag (set by App.jsx when detecting /auth/reset path)
+    const sessionRecoveryFlag = sessionStorage.getItem('__is_password_recovery') === 'true';
+    if (sessionRecoveryFlag) {
+      console.log('[AuthCallback] Recovery flag found in sessionStorage');
+      isRecoveryRef.current = true;
+    }
+
     // Listen for PASSWORD_RECOVERY event from Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[AuthCallback] Auth event:', event);
@@ -34,9 +41,10 @@ const AuthCallback = ({ onComplete, onError }) => {
         const params = new URLSearchParams(url.search);
         const hashParams = new URLSearchParams(url.hash.replace('#', ''));
 
-        // Check if this is a recovery flow from URL params
+        // Check if this is a recovery flow from URL path or params
+        const isResetPath = url.pathname === '/auth/reset';
         const type = params.get('type') || hashParams.get('type');
-        if (type === 'recovery') {
+        if (isResetPath || type === 'recovery') {
           isRecoveryRef.current = true;
         }
 
@@ -74,8 +82,9 @@ const AuthCallback = ({ onComplete, onError }) => {
             setStatus('success');
             setMessage(isPasswordRecovery ? 'Link verified! Redirecting to set your new password...' : 'Email verified successfully!');
             
-            // Clean URL
+            // Clean URL and sessionStorage
             window.history.replaceState({}, '', '/');
+            sessionStorage.removeItem('__is_password_recovery');
 
             // Redirect after short delay
             setTimeout(() => {
