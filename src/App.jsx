@@ -322,9 +322,16 @@ function AppContent() {
     // NOTE: We do NOT redirect away from reset_password even if logged in, because the user might have been auto-logged in by the magic link
     if (user && (currentScreen === 'welcome' || currentScreen === 'auth')) {
       // Don't redirect if we're on reset password screen or privacy or terms!
-      if (currentScreen !== 'reset_password' && currentScreen !== 'privacy' && currentScreen !== 'terms') {
+      // Also check URL path - if we're on /reset, don't redirect
+      const isOnResetPath = window.location.pathname === '/reset';
+      if (currentScreen !== 'reset_password' && currentScreen !== 'privacy' && currentScreen !== 'terms' && !isOnResetPath) {
           console.log(`[App] User logged in, redirecting from ${currentScreen} to profile`);
           setCurrentScreen('profile');
+      }
+      // If we're on /reset path but not showing reset_password screen, fix that
+      if (isOnResetPath && currentScreen !== 'reset_password') {
+          console.log(`[App] On /reset path but wrong screen, switching to reset_password`);
+          setCurrentScreen('reset_password');
       }
       return;
     }
