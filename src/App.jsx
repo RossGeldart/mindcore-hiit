@@ -135,17 +135,11 @@ function AppContent() {
     const hasAccessToken = hashParams.has('access_token');
     const type = params.get('type') || hashParams.get('type');
     
-    // PASSWORD RESET: dedicated /auth/reset path
-    if (path === '/auth/reset') {
-      // Store flag so AuthCallback knows this is recovery
-      sessionStorage.setItem('__is_password_recovery', 'true');
-      return 'auth_callback';
-    }
-    
-    // Auth callback with recovery type
-    if ((hasCode || hasAccessToken) && type === 'recovery') {
-      sessionStorage.setItem('__is_password_recovery', 'true');
-      return 'auth_callback';
+    // PASSWORD RESET: go directly to reset_password screen
+    // The ResetPasswordScreen handles waiting for the session to be established
+    // Supabase will process the code automatically (detectSessionInUrl: true)
+    if (path === '/auth/reset' || type === 'recovery') {
+      return 'reset_password';
     }
     
     // Auth callback route

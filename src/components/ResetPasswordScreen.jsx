@@ -18,13 +18,18 @@ const ResetPasswordScreen = ({ onBack, onSuccess }) => {
 
   // Check if user has a valid session (they should after clicking the reset link)
   useEffect(() => {
+    // Clean URL once we have a session (Supabase has finished processing)
+    if (user) {
+      window.history.replaceState({}, '', '/');
+    }
+    
     // If no user after a short delay, the link might be invalid
     const timer = setTimeout(() => {
       if (!user && status === 'ready') {
         setStatus('error');
         setErrorMessage('Your reset link may have expired. Please request a new one.');
       }
-    }, 3000);
+    }, 5000); // Increased to 5 seconds to give more time for session
 
     return () => clearTimeout(timer);
   }, [user, status]);
